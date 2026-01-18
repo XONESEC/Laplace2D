@@ -30,9 +30,9 @@ st.markdown("""
 
 * **Ly** = Length in the y-direction (m)
 
-* **Nx** = number of grid points in x-direction
+* **Nx** = number of grid points in X-direction
 
-* **Ny** = number of grid points in y-direction
+* **Ny** = number of grid points in Y-direction
 
 """)
 
@@ -619,5 +619,6 @@ st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
+
 
 
