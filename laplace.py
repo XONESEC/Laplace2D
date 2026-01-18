@@ -26,9 +26,9 @@ st.markdown("""
 
 * **K** = Thermal Conductivity (W/m-K)
 
-* **Lx** = Length in the x-direction (m)
+* **Lx** = Length in the X-direction (m)
 
-* **Ly** = Length in the y-direction (m)
+* **Ly** = Length in the Y-direction (m)
 
 * **Nx** = number of grid points in X-direction
 
@@ -75,8 +75,8 @@ st.sidebar.header("**Properties**")
 k = st.sidebar.number_input("K (W/m-K):", value=50.000, format="%.3f")
 Lx = st.sidebar.number_input("Lx (meter)", value=1.000, format="%.3f")
 Ly = st.sidebar.number_input("Ly (meter)", value=0.500, format="%.3f")
-Nx = st.sidebar.number_input("Nx (Grid Number-x)", value=61)
-Ny = st.sidebar.number_input("Ny (Grid Number-y)", value=41)
+Nx = st.sidebar.number_input("Nx (Grid Number-X)", value=61)
+Ny = st.sidebar.number_input("Ny (Grid Number-Y)", value=41)
 
 dx = Lx / (Nx - 1)
 dy = Ly / (Ny - 1)
@@ -619,6 +619,7 @@ st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
+
 
 
 
