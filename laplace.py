@@ -26,13 +26,13 @@ st.markdown("""
 
 * **K** = Thermal Conductivity (W/m-K)
 
-* **Lx** = Length in the X-direction (m)
+* **Lx** = Length in the x-direction (m)
 
-* **Ly** = Length in the Y-direction (m)
+* **Ly** = Length in the y-direction (m)
 
-* **Nx** = number of grid points in X-direction
+* **Nx** = number of grid points in x-direction
 
-* **Ny** = number of grid points in Y-direction
+* **Ny** = number of grid points in y-direction
 
 """)
 
@@ -75,15 +75,12 @@ st.sidebar.header("**Properties**")
 k = st.sidebar.number_input("K (W/m-K):", value=50.000, format="%.3f")
 Lx = st.sidebar.number_input("Lx (meter)", value=1.000, format="%.3f")
 Ly = st.sidebar.number_input("Ly (meter)", value=0.500, format="%.3f")
-Nx = st.sidebar.number_input("Nx (Grid Number-X)", value=61)
-Ny = st.sidebar.number_input("Ny (Grid Number-Y)", value=41)
+Nx = st.sidebar.number_input("Nx (Grid Number-x)", value=61)
+Ny = st.sidebar.number_input("Ny (Grid Number-y)", value=41)
 
 dx = Lx / (Nx - 1)
 dy = Ly / (Ny - 1)
 
-# ---- Solver control ----
-max_iter = 10000
-tolerance = 1e-6
 
 st.subheader("**Laplace Equation**")
 st.latex(r'''\frac{\partial^2 T}{\partial x^2}+\frac{\partial^2 T}
@@ -152,13 +149,27 @@ if TB == "Dirichlet":
 # ============================================================
 # GAUSS–SEIDEL SOLVER (LAPLACE)
 # ============================================================
-st.subheader("**Result & Visualization**")
 
+
+# Button For Running Simulation and Showing Result
+st.sidebar.header("**Run Simulation & Result**")
+# ---- Solver control ----
+max_iter =st.sidebar.number_input("Iterations Simulation:", value=10000, min_value=1, max_value=100000, step=1)
+tolerance = 1e-6
+run_simulation = st.sidebar.button("Run Simulation")
+
+# ---- Data storage ----
 save_every = 1 # Save every n iterations (lagger number = faster simulation)
 T_history = []
 qmag_history = []
 qx_history = []
 qy_history = []
+
+if not run_simulation:
+    st.stop()
+    
+# Solver Loop
+progress_bar = st.progress(0)
 
 for it in range(max_iter):
     T_old[:, :] = T[:, :]
@@ -169,11 +180,10 @@ for it in range(max_iter):
                 (T[j, i+1] + T[j, i-1]) * dy**2 +
                 (T[j+1, i] + T[j-1, i]) * dx**2
             ) / (2 * (dx**2 + dy**2))
-            
+
     if it % save_every == 0:
         T_history.append(T.copy())
-        
-        # HEAT FLUX CALCULATION
+
         dTdy, dTdx = np.gradient(T, dy, dx)
         qx = -k * dTdx
         qy = -k * dTdy
@@ -182,39 +192,35 @@ for it in range(max_iter):
         qmag_history.append(q_mag.copy())
         qx_history.append(qx.copy())
         qy_history.append(qy.copy())
-    
-    # ---- Neumann BCs (insulated: dT/dn = 0) ----
-    if TL == "Neumann":
-        T[:, 0] = T[:, 1]
 
-    if TR == "Neumann":
-        T[:, -1] = T[:, -2]
+    # --- Boundary conditions ---
+    if TL == "Neumann": T[:, 0] = T[:, 1]
+    if TR == "Neumann": T[:, -1] = T[:, -2]
+    if TB == "Neumann": T[0, :] = T[1, :]
+    if TT == "Neumann": T[-1, :] = T[-2, :]
 
-    if TB == "Neumann":
-        T[0, :] = T[1, :]
+    if TL == "Dirichlet": T[:, 0] = bc_left
+    if TR == "Dirichlet": T[:, -1] = bc_right
+    if TB == "Dirichlet": T[0, :] = bc_bottom
+    if TT == "Dirichlet": T[-1, :] = bc_top
 
-    if TT == "Neumann":
-        T[-1, :] = T[-2, :]
-    
-    # ---- Dirichlet BCs (re-apply) ----
-    if TL == "Dirichlet":
-        T[:, 0] = bc_left
-
-    if TR == "Dirichlet":
-        T[:, -1] = bc_right
-        
-    if TB == "Dirichlet":
-        T[0, :] = bc_bottom
-
-    if TT == "Dirichlet":
-        T[-1, :] = bc_top
-
-    # ---- Convergence check ----
+    # --- Convergence check ---
     error = np.max(np.abs(T - T_old))
     if error < tolerance:
-        st.write(f"Converged in {it+1} iterations")
+        progress_bar.progress(1.0)
+        progress_bar.empty()
+        st.subheader("**Result & Visualization**")
+        st.success(f"Converged in {it+1} iterations")
         break
-    
+
+    progress_bar.progress((it + 1) / max_iter, text=f"Simulation in progress. Please wait ({it+1}/{max_iter} iterations)")
+
+else:
+    progress_bar.empty()
+    # if not converged within max_iter, result not shown
+    st.info("Not converged within the maximum number of iterations !!!!")
+    st.stop()
+   
 T_history = np.array(T_history)
 T_history = T_history.astype(np.float32)
 
@@ -230,118 +236,9 @@ n_frame = qmag_history.shape[0]
 # ============================================================
 
 # ============================================================
-# 3D Visualization
-# ============================================================
-#Temperature Distribution Slice Plot
-import plotly.graph_objects as go
-
-slice_mode = st.radio("Temperature slice direction",
-                      ["X-index (Vertical Slice)", 
-                       "Y-index (Horizontal Slice)"]
-)
-if slice_mode == "X-index (Vertical Slice)":
-    idx = st.slider("Select X-index", 0, Nx - 1, Nx // 2)
-
-    T_slice = T_history[:, :, idx]   # shape: (n_iter, Ny)
-
-    x_mesh = np.arange(Ny)           # spatial (y direction)
-    y_mesh = np.arange(n_iter)       # iteration
-    x_mesh, y_mesh = np.meshgrid(x_mesh, y_mesh)
-
-    x_label = "Y-index"
-else:
-    idx = st.slider("Select Y-index", 0, Ny - 1, Ny // 2)
-
-    T_slice = T_history[:, idx, :]   # shape: (n_iter, Nx)
-
-    x_mesh = np.arange(Nx)           # spatial (x direction)
-    y_mesh = np.arange(n_iter)       # iteration
-    x_mesh, y_mesh = np.meshgrid(x_mesh, y_mesh)
-
-    x_label = "X-index"
-
-fig = go.Figure(
-    data=[
-        go.Surface(
-            z=T_slice,
-            x=x_mesh,
-            y=y_mesh,
-            colorscale="Magma"
-        )
-    ]
-)
-
-fig.update_layout(
-    scene=dict(
-        xaxis_title=x_label,
-        yaxis_title="Iteration",
-        zaxis_title="Temperature (°C)",
-    ),
-    height=700,
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-#Heat Flux Distribution Slice Plot
-slice_mode_q = st.radio("Heat Flux slice direction",
-                      ["X-index (Vertical Slice)", 
-                       "Y-index (Horizontal Slice)"])
-
-if slice_mode_q == "X-index (Vertical Slice)":
-    idx = st.slider(
-        "Select X-index (Heat Flux)",
-        0, Nx - 1, Nx // 2,
-        key="qx_idx"
-    )
-
-    q_slice = qmag_history[:, :, idx]   # (n_iter, Ny)
-
-    x_mesh = np.arange(Ny)
-    y_mesh = np.arange(n_iter)
-    x_mesh, y_mesh = np.meshgrid(x_mesh, y_mesh)
-
-    x_label = "Y-index"
-else:
-    idx = st.slider(
-        "Select Y-index (Heat Flux)",
-        0, Ny - 1, Ny // 2,
-        key="qy_idx"
-    )
-
-    q_slice = qmag_history[:, idx, :]   # (n_iter, Nx)
-
-    x_mesh = np.arange(Nx)
-    y_mesh = np.arange(n_iter)
-    x_mesh, y_mesh = np.meshgrid(x_mesh, y_mesh)
-
-    x_label = "X-index"
-
-
-fig_q = go.Figure(
-    data=[
-        go.Surface(
-            z=q_slice,
-            x=x_mesh,
-            y=y_mesh,
-            colorscale="Viridis"
-        )
-    ]
-)
-
-fig_q.update_layout(
-    scene=dict(
-        xaxis_title=x_label,
-        yaxis_title="Iteration",
-        zaxis_title="Heat Flux (W/m²)"
-    ),
-    height=700,
-)
-
-st.plotly_chart(fig_q, use_container_width=True)
-
-# ============================================================
 #Autoplay Settings
 # ============================================================
+    
 st.sidebar.header("**Autoplay Settings**")
 button = st.sidebar.radio("Animation:", ["Temperature Distribution", 
                                          "Heat Flux Magnitude", 
@@ -617,8 +514,5 @@ st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
-
-
-
 
 
