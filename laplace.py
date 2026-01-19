@@ -154,7 +154,7 @@ if TB == "Dirichlet":
 # Button For Running Simulation and Showing Result
 st.sidebar.header("**Run Simulation & Result**")
 # ---- Solver control ----
-max_iter =st.sidebar.number_input("Iterations Simulation:", value=10000, min_value=1, max_value=100000, step=1)
+max_iter =st.sidebar.number_input("Simulation Iterations:", value=10000, min_value=1, max_value=100000, step=1)
 tolerance = 1e-6
 run_simulation = st.sidebar.button("Run Simulation")
 
@@ -514,5 +514,6 @@ st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
+
 
 
