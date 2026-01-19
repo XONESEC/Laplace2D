@@ -283,8 +283,6 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 #Heat Flux Distribution Slice Plot
-qmag_history.shape == (n_iter, Ny, Nx)
-
 slice_mode_q = st.radio("Heat Flux slice direction",
                       ["X-index (Vertical Slice)", 
                        "Y-index (Horizontal Slice)"])
@@ -619,6 +617,7 @@ st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
+
 
 
 
