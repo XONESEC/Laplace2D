@@ -43,28 +43,32 @@ st.markdown("""
 st.sidebar.header("**Boundary**")
 
 #Left
-TL = st.sidebar.radio("**Left Boundary:**", ["Dirichlet", "Neumann"], index=0)
+TL = st.sidebar.radio("**Left Boundary:**", ["Dirichlet", "Neumann"], index=0,
+                      on_change=lambda: st.session_state.update({"params_changed": True}))
 if TL == "Dirichlet":
     bc_left = st.sidebar.number_input("TL (°C):", value=500.0)
 else:
     bc_left = st.sidebar.number_input("qL (W/m²):", value=0.0)
     
 #Right
-TR = st.sidebar.radio("**Right Boundary:**", ["Dirichlet", "Neumann"], index=1)
+TR = st.sidebar.radio("**Right Boundary:**", ["Dirichlet", "Neumann"], index=1,
+                      on_change=lambda: st.session_state.update({"params_changed": True}))
 if TR == "Dirichlet":
     bc_right = st.sidebar.number_input("TR (°C):", value=100.0)
 else:
     bc_right = st.sidebar.number_input("qR (W/m²):", value=0.0)
     
 #Top
-TT = st.sidebar.radio("**Top Boundary:**", ["Dirichlet", "Neumann"], index=1)
+TT = st.sidebar.radio("**Top Boundary:**", ["Dirichlet", "Neumann"], index=1,
+                      on_change=lambda: st.session_state.update({"params_changed": True}))
 if TT == "Dirichlet":
     bc_top = st.sidebar.number_input("TT (°C):", value=200.0)
 else:
     bc_top = st.sidebar.number_input("qT (W/m²):", value=0.0)
 
 #Bottom
-TB = st.sidebar.radio("**Bottom Boundary:**", ["Dirichlet", "Neumann"], index=0)
+TB = st.sidebar.radio("**Bottom Boundary:**", ["Dirichlet", "Neumann"], index=0,
+                      on_change=lambda: st.session_state.update({"params_changed": True}))
 if TB == "Dirichlet":
     bc_bottom = st.sidebar.number_input("TB (°C):", value=25.0)
 else:
@@ -72,11 +76,16 @@ else:
 
 # PROPERTIES
 st.sidebar.header("**Properties**")
-k = st.sidebar.number_input("K (W/m-K):", value=50.000, format="%.3f")
-Lx = st.sidebar.number_input("Lx (meter)", value=1.000, format="%.3f")
-Ly = st.sidebar.number_input("Ly (meter)", value=0.500, format="%.3f")
-Nx = st.sidebar.number_input("Nx (Grid Number-x)", value=61)
-Ny = st.sidebar.number_input("Ny (Grid Number-y)", value=41)
+k = st.sidebar.number_input("K (W/m-K):", value=50.000, format="%.3f",
+                            on_change=lambda: st.session_state.update({"params_changed": True}))
+Lx = st.sidebar.number_input("Lx (meter)", value=1.000, format="%.3f",
+                             on_change=lambda: st.session_state.update({"params_changed": True}))
+Ly = st.sidebar.number_input("Ly (meter)", value=0.500, format="%.3f",
+                             on_change=lambda: st.session_state.update({"params_changed": True}))
+Nx = st.sidebar.number_input("Nx (Grid Number-x)", value=20,
+                             on_change=lambda: st.session_state.update({"params_changed": True}))
+Ny = st.sidebar.number_input("Ny (Grid Number-y)", value=20,
+                             on_change=lambda: st.session_state.update({"params_changed": True}))
 
 dx = Lx / (Nx - 1)
 dy = Ly / (Ny - 1)
@@ -123,6 +132,25 @@ st.latex(r'''
 ''')
 
 # ============================================================
+# SESSION STATE INIT
+# ============================================================
+if "simulation_done" not in st.session_state:
+    st.session_state.simulation_done = False
+
+if "simulation" not in st.session_state:
+    st.session_state.simulation = False
+
+if "data_ready" not in st.session_state:
+    st.session_state.data_ready = False
+    
+if "run_requested" not in st.session_state:
+    st.session_state.run_requested = False
+
+if "params_changed" not in st.session_state:
+    st.session_state.params_changed = False
+    
+
+# ============================================================
 # INITIALIZATION
 # ============================================================
 
@@ -150,93 +178,73 @@ if TB == "Dirichlet":
 # GAUSS–SEIDEL SOLVER (LAPLACE)
 # ============================================================
 
-
 # Button For Running Simulation and Showing Result
-st.sidebar.header("**Run Simulation & Result**")
 # ---- Solver control ----
-max_iter =st.sidebar.number_input("Simulation Iterations:", value=10000, min_value=1, max_value=100000, step=1)
+max_iter =st.sidebar.number_input("Iterations Simulation:", 
+                                  value=10000, 
+                                  min_value=1, 
+                                  max_value=100000, 
+                                  step=1,
+                                  on_change=lambda: st.session_state.update({"params_changed": False}))
 tolerance = 1e-6
-run_simulation = st.sidebar.button("Run Simulation")
+simulation = st.sidebar.button("Run Simulation",
+                                  on_click=lambda: st.session_state.update({"simulation": True,
+                                                                            "simulation_done": False,
+                                                                            "params_changed": False,
+                                                                            }))
 
-# ---- Data storage ----
-save_every = 1 # Save every n iterations (lagger number = faster simulation)
-T_history = []
-qmag_history = []
-qx_history = []
-qy_history = []
+reset_simulation = st.sidebar.button("Reset Simulation",
+                                    on_click=lambda: st.session_state.update({"simulation_done": False,
+                                                                              "data_ready": False,
+                                                                              "run_requested": False,
+                                                                              "params_changed": True,
+                                                                              }))
 
-if not run_simulation:
+if st.session_state.params_changed:
+    st.warning("Parameters changed. Please reset and run the simulation again.")
+    st.session_state.simulation_done = False
+    st.session_state.data_ready = False
+    st.session_state.run_requested = False
     st.stop()
-    
-# Solver Loop
-progress_bar = st.progress(0)
 
-for it in range(max_iter):
-    T_old[:, :] = T[:, :]
+if simulation:
+    st.session_state.simulation = True
+    st.session_state.run_requested = True
+    st.session_state.simulation_done = False
+    st.session_state.params_changed = False
+    st.session_state.data_ready = False
 
-    for j in range(1, Ny - 1):
-        for i in range(1, Nx - 1):
-            T[j, i] = (
-                (T[j, i+1] + T[j, i-1]) * dy**2 +
-                (T[j+1, i] + T[j-1, i]) * dx**2
-            ) / (2 * (dx**2 + dy**2))
 
-    if it % save_every == 0:
-        T_history.append(T.copy())
+# ============================================================
+# ALL-NEUMANN BC WARNING (SHORT VERSION)
+# ============================================================
 
-        dTdy, dTdx = np.gradient(T, dy, dx)
-        qx = -k * dTdx
-        qy = -k * dTdy
-        q_mag = np.sqrt(qx**2 + qy**2)
+all_neumann = (
+    TL == "Neumann" and
+    TR == "Neumann" and
+    TT == "Neumann" and
+    TB == "Neumann"
+)
 
-        qmag_history.append(q_mag.copy())
-        qx_history.append(qx.copy())
-        qy_history.append(qy.copy())
+if all_neumann and st.session_state.run_requested:
 
-    # --- Boundary conditions ---
-    if TL == "Neumann": T[:, 0] = T[:, 1]
-    if TR == "Neumann": T[:, -1] = T[:, -2]
-    if TB == "Neumann": T[0, :] = T[1, :]
-    if TT == "Neumann": T[-1, :] = T[-2, :]
+    st.warning("""
+⚠️ **All-Neumann Boundary Condition Detected**
 
-    if TL == "Dirichlet": T[:, 0] = bc_left
-    if TR == "Dirichlet": T[:, -1] = bc_right
-    if TB == "Dirichlet": T[0, :] = bc_bottom
-    if TT == "Dirichlet": T[-1, :] = bc_top
+You are solving:
+∇²T = 0 with ∂T/∂n = 0 on all boundaries.
 
-    # --- Convergence check ---
-    error = np.max(np.abs(T - T_old))
-    if error < tolerance:
-        progress_bar.progress(1.0)
-        progress_bar.empty()
-        st.subheader("**Result & Visualization**")
-        st.success(f"Converged in {it+1} iterations")
-        break
+**Result:**  
+Temperature becomes **uniform everywhere** (no gradient, no heat flux).
 
-    progress_bar.progress((it + 1) / max_iter, text=f"Simulation in progress. Please wait ({it+1}/{max_iter} iterations)")
+The solver converges immediately — this is **expected behavior**, not an error.
+""")
 
-else:
-    progress_bar.empty()
-    # if not converged within max_iter, result not shown
-    st.info("Not converged within the maximum number of iterations !!!!")
+    st.session_state.run_requested = False
     st.stop()
-   
-T_history = np.array(T_history)
-T_history = T_history.astype(np.float32)
-
-qmag_history = np.array(qmag_history, dtype=np.float32)
-qx_history = np.array(qx_history, dtype=np.float32)
-qy_history = np.array(qy_history, dtype=np.float32)
-
-n_iter = T_history.shape[0]
-n_frame = qmag_history.shape[0]
 
 # ============================================================
-# VISUALIZATION
-# ============================================================
-
-# ============================================================
-#Autoplay Settings
+# Autoplay Settings
 # ============================================================
     
 st.sidebar.header("**Autoplay Settings**")
@@ -244,7 +252,8 @@ button = st.sidebar.radio("Animation:", ["Temperature Distribution",
                                          "Heat Flux Magnitude", 
                                          "Heat Flux Vector Field", 
                                          "Heat Flux Streamline", 
-                                         "Heat Flux Direction & Magnitude"], index=None)
+                                         "Heat Flux Direction & Magnitude"], index=None, on_change=lambda: st.session_state.update({"params_changed": False}))
+
 stop = st.sidebar.button("STOP Animation")
 if stop:
     button = index=None
@@ -255,12 +264,111 @@ frame = st.sidebar.number_input("Frame Delay (ms)",
 
 choose = st.sidebar.radio("**Iteration Selection Mode:**", ["Slider", "Input Number"], index=0)
 
-#Temperature Distribution (Heat Map)
+# ============================================================
+# RUN SOLVER ONLY WHEN REQUESTED
+# ============================================================
+
+save_every = 1 # Save every n iterations (lagger number = faster simulation)
+
+if st.session_state.run_requested and not st.session_state.simulation_done:
+
+    progress_bar = st.progress(0, text="Simulation in progress...")
+
+  
+    T_history = []
+    qmag_history = []
+    qx_history = []
+    qy_history = []
+
+    for it in range(max_iter):
+        T_old[:, :] = T[:, :]
+
+        for j in range(1, Ny - 1):
+            for i in range(1, Nx - 1):
+                T[j, i] = (
+                    (T[j, i+1] + T[j, i-1]) * dy**2 +
+                    (T[j+1, i] + T[j-1, i]) * dx**2
+                ) / (2 * (dx**2 + dy**2))
+
+        if it % save_every == 0:
+            T_history.append(T.copy())
+
+            dTdy, dTdx = np.gradient(T, dy, dx)
+            qx = -k * dTdx
+            qy = -k * dTdy
+            q_mag = np.sqrt(qx**2 + qy**2)
+
+            qmag_history.append(q_mag.copy())
+            qx_history.append(qx.copy())
+            qy_history.append(qy.copy())
+
+        # Boundary conditions
+        if TL == "Neumann": T[:, 0] = T[:, 1]
+        if TR == "Neumann": T[:, -1] = T[:, -2]
+        if TB == "Neumann": T[0, :] = T[1, :]
+        if TT == "Neumann": T[-1, :] = T[-2, :]
+
+        if TL == "Dirichlet": T[:, 0] = bc_left
+        if TR == "Dirichlet": T[:, -1] = bc_right
+        if TB == "Dirichlet": T[0, :] = bc_bottom
+        if TT == "Dirichlet": T[-1, :] = bc_top
+
+        error = np.max(np.abs(T - T_old))
+        if error < tolerance:
+            progress_bar.progress(1.0)
+            progress_bar.empty()
+
+            st.session_state.T_history = np.array(T_history, dtype=np.float32)
+            st.session_state.qmag_history = np.array(qmag_history, dtype=np.float32)
+            st.session_state.qx_history = np.array(qx_history, dtype=np.float32)
+            st.session_state.qy_history = np.array(qy_history, dtype=np.float32)
+
+            st.session_state.simulation_done = True
+            st.session_state.data_ready = True
+            st.session_state.run_requested = False
+            
+            if st.session_state.simulation_done:
+                st.header("**Result and Visualization**")
+                  
+            st.success(f"Converged in {it+1} iterations")  
+            break
+
+        progress_bar.progress((it + 1) / max_iter, text=f"Simulation in progress. Please wait ({it+1}/{max_iter} iterations)")
+
+    else:
+        progress_bar.empty()
+        st.warning("Not converged within max iterations")
+
+# ============================================================
+# VISUALIZATION
+# ============================================================
+# Save data to session state
+if not st.session_state.data_ready:
+    st.info("Run simulation first to see results.")
+    st.stop()
+
+st.session_state.simulation_done = True
+st.session_state.data_ready = True
+st.session_state.params_changed = True
+
+st.session_state.run_requested = False
+st.session_state.simulation = False
+
+T_history = st.session_state.T_history
+qmag_history = st.session_state.qmag_history
+qx_history = st.session_state.qx_history
+qy_history = st.session_state.qy_history
+
+n_iter = T_history.shape[0]
+n_frame = qmag_history.shape[0]
+
+
 plot_area = st.empty()
 
 vmin = np.min(T_history)
 vmax = np.max(T_history)
 
+# Temperature Distribution
 def plot_frame(k):
     fig, ax = plt.subplots(figsize=(7, 4))
 
@@ -324,7 +432,7 @@ plot_area_vec = st.empty()
 vmin_T = T_history.min()
 vmax_T = T_history.max()
 
-skip = 2  # biar panah nggak rame 
+skip = 2  # so that arrows are not too crowded
 
 def plot_vector_frame(m):
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -392,7 +500,7 @@ st.subheader("Heat Flux Direction & Magnitude")
 
 plot_area_dir = st.empty()
 
-skip = 3  # biar panah nggak rame
+skip = 3  # so that arrows are not too crowded
 
 vmin_q = qmag_history.min()
 vmax_q = qmag_history.max()
@@ -426,7 +534,14 @@ def plot_dir_mag_frame(n):
 # ============================================================
 # RUN AUTOPLAY AND SELECTION MODE
 # ============================================================
+
 # Temperature Distribution
+st.session_state.simulation_done = True
+st.session_state.data_ready = True
+st.session_state.params_changed = False
+st.session_state.run_requested = False
+st.session_state.simulation = False
+
 if button == "Temperature Distribution":
     for n in range(n_iter):
         plot_frame(n)
@@ -501,19 +616,30 @@ else:
     plot_dir_mag_frame(n)
 
 # Print Data Frame
-import pandas as pd
-
 # Temperature Data Frame
 df = pd.DataFrame(T, columns=[f"x={xi:.2f}m" for xi in x], index=[f"y={yi:.2f}m" for yi in y])
 st.subheader("**Temperature Data Frame**")
 st.dataframe(df) 
+
 # Heat Flux Data Frame
-dfx = pd.DataFrame(qx, columns=[f"x={xi:.2f}m" for xi in x], index=[f"y={yi:.2f}m" for yi in y])
-dfy = pd.DataFrame(qy, columns=[f"x={xi:.2f}m" for xi in x], index=[f"y={yi:.2f}m" for yi in y])
+qx = st.session_state.qx_history[-1]
+qy = st.session_state.qy_history[-1]
+
+dfx = pd.DataFrame(
+    qx,
+    columns=[f"x={xi:.2f}m" for xi in x],
+    index=[f"y={yi:.2f}m" for yi in y]
+)
+
+dfy = pd.DataFrame(
+    qy,
+    columns=[f"x={xi:.2f}m" for xi in x],
+    index=[f"y={yi:.2f}m" for yi in y]
+)
+
 st.subheader("**Heat Flux Data Frame (X-direction)**")
 st.dataframe(dfx)
 st.subheader("**Heat Flux Data Frame (Y-direction)**")
 st.dataframe(dfy)
-
 
 
